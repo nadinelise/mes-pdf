@@ -1,15 +1,105 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>La Rencontre</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>La Rencontre — Les histoires d’Andrée</title>
   <style>
-    html, body {margin:0; height:100%; background:#f6f6f6;}
-    iframe {border:none; width:100%; height:100vh;}
+    :root { --bg:#fff8e9; --ink:#5b3a12; }
+    html,body{margin:0;background:var(--bg);color:var(--ink);font-family: Georgia, "Times New Roman", serif}
+    header{position:sticky;top:0;background:#f2e0b6;border-bottom:1px solid #e2cc92;padding:.8rem 1rem;font-weight:700}
+    .wrap{max-width:920px;margin:0 auto;padding:1rem}
+    .page{margin:0 auto 1.2rem auto; box-shadow:0 2px 12px rgba(0,0,0,.12); background:#fff; display:inline-block}
+    .loading{padding:2rem;text-align:center;opacity:.7}
+    .controls{display:flex;gap:.5rem;align-items:center;font-size:.95rem}
+    .controls input{flex:1}
+    .small{font-size:.9rem;opacity:.8}
+    .btn{cursor:pointer;padding:.4rem .7rem;border:1px solid #c9b37d;border-radius:.5rem;background:#fff5cf}
   </style>
 </head>
 <body>
-  <iframe src="La%20rencontre.pdf"></iframe>
+  <header>
+    📖 Les histoires d’Andrée — <span class="small">La Rencontre (visionneuse PDF)</span>
+  </header>
+
+  <div class="wrap">
+    <div class="controls">
+      <button class="btn" id="dl">Télécharger le PDF</button>
+      <input id="zoom" type="range" min="80" max="180" value="120" />
+      <span class="small" id="zlabel">Zoom : 120%</span>
+    </div>
+    <div id="status" class="loading">Chargement du PDF…</div>
+    <div id="pages"></div>
+  </div>
+
+  <!-- PDF.js depuis CDN (fonctionne dans le WebView Facebook) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" integrity="sha512-5GQw2gVqzq8x4qvT0rjJ3z0tPNYpQ+0h7l6m8b6QmHj2L1o3S0jV6m8e4t7mQ3v5h7K1Z3v0j6l3s2aUqY7LxA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script>
+    // Chemin vers TON PDF (même dossier)
+    const PDF_URL = "La%20rencontre.pdf";
+
+    // Bouton de téléchargement
+    document.getElementById("dl").onclick = () => location.href = PDF_URL;
+
+    // Zoom (ratio d’échelle)
+    const zoomInput = document.getElementById("zoom");
+    const zlabel = document.getElementById("zlabel");
+    let baseScale = parseInt(zoomInput.value, 10) / 100;
+
+    zoomInput.addEventListener("input", () => {
+      baseScale = parseInt(zoomInput.value, 10) / 100;
+      zlabel.textContent = `Zoom : ${Math.round(baseScale * 100)}%`;
+      // Re-rendre toutes les pages au nouveau zoom
+      renderAll();
+    });
+
+    const container = document.getElementById("pages");
+    const status = document.getElementById("status");
+    let pdfDoc = null;
+
+    // Configure le worker PDF.js
+    if (window["pdfjsLib"]) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+    }
+
+    // Rendu d’une page
+    async function renderPage(pageNumber) {
+      const page = await pdfDoc.getPage(pageNumber);
+      const viewport = page.getViewport({ scale: baseScale });
+      const canvas = document.createElement("canvas");
+      canvas.className = "page";
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      const ctx = canvas.getContext("2d");
+      await page.render({ canvasContext: ctx, viewport }).promise;
+      return canvas;
+    }
+
+    async function renderAll() {
+      if (!pdfDoc) return;
+      status.textContent = "Rendu des pages…";
+      container.innerHTML = "";
+      for (let n = 1; n <= pdfDoc.numPages; n++) {
+        const c = await renderPage(n);
+        container.appendChild(c);
+      }
+      status.textContent = "";
+    }
+
+    // Charger le PDF
+    (async () => {
+      try {
+        const loadingTask = pdfjsLib.getDocument(PDF_URL);
+        pdfDoc = await loadingTask.promise;
+        await renderAll();
+      } catch (e) {
+        status.textContent = "Impossible de charger le PDF.";
+        console.error(e);
+      }
+    })();
+  </script>
 </body>
 </html>
+
+
